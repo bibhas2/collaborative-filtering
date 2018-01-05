@@ -1,0 +1,90 @@
+import tensorflow as tf
+import numpy as np
+
+def weight_variable(shape, name):
+    initial = tf.truncated_normal(shape, stddev=0.001)
+    return tf.Variable(initial, name=name)
+
+
+def bias_variable(shape, name):
+    b_init = tf.constant_initializer(0.)
+    return tf.get_variable(name, shape, initializer=b_init)
+
+class RecommenderModel(object):
+    def __init__(self, num_users, num_items, num_features, reg_lambda):
+        self.num_users = num_users
+        self.num_items = num_items
+        self.num_features = num_features
+        self.reg_lambda = tf.constant(reg_lambda, dtype=tf.float32)
+        self.build_graph()
+    
+    def build_graph(self):
+        self.u_idx = tf.placeholder(tf.int32, [None])
+        self.v_idx = tf.placeholder(tf.int32, [None])
+        self.r = tf.placeholder(tf.float32, [None])
+
+        self.U = weight_variable([self.num_users, self.num_features], 'U')
+        self.V = weight_variable([self.num_items, self.num_features], 'V')
+        self.U_bias = bias_variable([self.num_users], 'U_bias')
+        self.V_bias = bias_variable([self.num_items], 'V_bias')
+
+        self.U_embed = tf.nn.embedding_lookup(self.U, self.u_idx)
+        self.V_embed = tf.nn.embedding_lookup(self.V, self.v_idx)
+        self.U_bias_embed = tf.nn.embedding_lookup(self.U_bias, self.u_idx)
+        self.V_bias_embed = tf.nn.embedding_lookup(self.V_bias, self.v_idx)
+        self.r_hat = tf.reduce_sum(tf.multiply(self.U_embed, self.V_embed), reduction_indices=1)
+        self.r_hat = tf.add(self.r_hat, self.U_bias_embed)
+        self.r_hat = tf.add(self.r_hat, self.V_bias_embed)
+
+        self.l2_loss = tf.nn.l2_loss(tf.subtract(self.r, self.r_hat))
+        self.reg = tf.add(tf.multiply(self.reg_lambda, tf.nn.l2_loss(self.U)), tf.multiply(self.reg_lambda, tf.nn.l2_loss(self.V)))
+        self.reg_loss = tf.add(self.l2_loss, self.reg)
+
+        self.optimizer = tf.train.AdamOptimizer()
+        self.train_step = self.optimizer.minimize(self.reg_loss)
+
+class MovieLensDataLoader(object):
+    def __init__(self):
+        self.num_users = 0
+        self.num_items = 0
+        self.num_ratings = 0
+
+        with open('./ml-100k/u.info', 'r') as f:
+            for line in f.readlines():
+                tokens = line.split()
+                value = int(tokens[0])
+                label = tokens[1]
+
+                if label == "users":
+                    self.num_users = value
+                elif label == "items":
+                    self.num_items = value
+                elif label == "ratings":
+                    self.num_ratings = value
+        
+        self.data_file = open("./ml-100k/u.data", "r")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        print "Closing file"
+        self.data_file.close()
+
+    def load_next_batch(self, batch_size):
+        print "Reading batch:", self.data_file.tell()
+
+        for index in range(0, batch_size):
+            line = self.data_file.readline()
+            if line == "":
+                self.data_file.seek(0)
+                line = self.data_file.readline()
+            
+            print line
+
+with MovieLensDataLoader() as loader:
+    print "Users:", loader.num_users
+    print "Items:", loader.num_items
+    print "Ratings:", loader.num_ratings
+    loader.load_next_batch(5)
+    loader.load_next_batch(5)
