@@ -7,8 +7,7 @@ def weight_variable(shape, name):
 
 
 def bias_variable(shape, name):
-    b_init = tf.constant_initializer(0.)
-    return tf.get_variable(name, shape, initializer=b_init)
+    return tf.Variable(tf.zeros(shape), name=name)
 
 class RecommenderModel(object):
     def __init__(self, num_users, num_items, num_features=20, reg_lambda=1e-5):
@@ -48,6 +47,11 @@ class RecommenderModel(object):
         session.run(self.train_step, feed_dict)
 
         return session.run(self.l2_loss, feed_dict)
+    
+    def predict(self, session, u_idx, v_idx):
+        feed_dict = {self.u_idx:u_idx, self.v_idx:v_idx}
+
+        return session.run(self.r_hat, feed_dict)
 
 class MovieLensDataLoader(object):
     def __init__(self):
@@ -106,12 +110,17 @@ with MovieLensDataLoader() as loader:
         init_op = tf.global_variables_initializer()
         session.run(init_op)
 
-        for step in range(0, 10000):
+        for step in range(0, 2000):
             train_user_idx, train_item_idx, train_rating = loader.load_next_batch(200)
             loss = model.train_batch(session, train_user_idx, train_item_idx, train_rating)
 
             print "Loss:", loss
 
+        #Run prediction
+        user_idx, item_idx, rating_real = loader.load_next_batch(10)
 
+        rating_predicted = model.predict(session, user_idx, item_idx)
 
+        print "Real:", rating_real
+        print "Prediction:", rating_predicted
 
