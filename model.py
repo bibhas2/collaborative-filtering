@@ -11,7 +11,7 @@ def bias_variable(shape, name):
     return tf.get_variable(name, shape, initializer=b_init)
 
 class RecommenderModel(object):
-    def __init__(self, num_users, num_items, num_features, reg_lambda):
+    def __init__(self, num_users, num_items, num_features=20, reg_lambda=1e-5):
         self.num_users = num_users
         self.num_items = num_items
         self.num_features = num_features
@@ -43,6 +43,12 @@ class RecommenderModel(object):
         self.optimizer = tf.train.AdamOptimizer()
         self.train_step = self.optimizer.minimize(self.reg_loss)
 
+    def train_batch(self, session, train_u_idx, train_v_idx, train_r):
+        feed_dict = {self.u_idx:train_u_idx, self.v_idx:train_v_idx, self.r:train_r}
+        session.run(self.train_step, feed_dict)
+
+        return session.run(self.l2_loss, feed_dict)
+
 class MovieLensDataLoader(object):
     def __init__(self):
         self.num_users = 0
@@ -68,23 +74,44 @@ class MovieLensDataLoader(object):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        print "Closing file"
         self.data_file.close()
 
     def load_next_batch(self, batch_size):
-        print "Reading batch:", self.data_file.tell()
-
+        user_idx = np.zeros([batch_size])
+        item_idx = np.zeros([batch_size])
+        rating = np.zeros([batch_size])
+        
         for index in range(0, batch_size):
             line = self.data_file.readline()
             if line == "":
                 self.data_file.seek(0)
                 line = self.data_file.readline()
             
-            print line
+            parts = line.split()
+            user_idx[index] = float(parts[0]) - 1
+            item_idx[index] = float(parts[1]) - 1
+            rating[index] = float(parts[2])
+            
+        return (user_idx, item_idx, rating)
+
 
 with MovieLensDataLoader() as loader:
     print "Users:", loader.num_users
     print "Items:", loader.num_items
     print "Ratings:", loader.num_ratings
-    loader.load_next_batch(5)
-    loader.load_next_batch(5)
+
+    with tf.Session() as session:
+        model = RecommenderModel(loader.num_users, loader.num_items)
+
+        init_op = tf.global_variables_initializer()
+        session.run(init_op)
+
+        for step in range(0, 10000):
+            train_user_idx, train_item_idx, train_rating = loader.load_next_batch(200)
+            loss = model.train_batch(session, train_user_idx, train_item_idx, train_rating)
+
+            print "Loss:", loss
+
+
+
+
