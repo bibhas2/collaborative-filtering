@@ -99,28 +99,31 @@ class MovieLensDataLoader(object):
         return (user_idx, item_idx, rating)
 
 
-with MovieLensDataLoader() as loader:
-    print "Users:", loader.num_users
-    print "Items:", loader.num_items
-    print "Ratings:", loader.num_ratings
+def main():
+    with MovieLensDataLoader() as loader:
+        print "Users:", loader.num_users
+        print "Items:", loader.num_items
+        print "Ratings:", loader.num_ratings
 
-    with tf.Session() as session:
-        model = RecommenderModel(loader.num_users, loader.num_items)
+        with tf.Session() as session:
+            model = RecommenderModel(loader.num_users, loader.num_items, num_features=2000)
 
-        init_op = tf.global_variables_initializer()
-        session.run(init_op)
+            init_op = tf.global_variables_initializer()
+            session.run(init_op)
 
-        for step in range(0, 2000):
-            train_user_idx, train_item_idx, train_rating = loader.load_next_batch(200)
-            loss = model.train_batch(session, train_user_idx, train_item_idx, train_rating)
+            for step in range(0, 5000):
+                train_user_idx, train_item_idx, train_rating = loader.load_next_batch(200)
+                loss = model.train_batch(session, train_user_idx, train_item_idx, train_rating)
+                
+                if step % 10 == 0:
+                    print "Loss:", loss
 
-            print "Loss:", loss
+            #Run prediction
+            user_idx, item_idx, rating_real = loader.load_next_batch(10)
 
-        #Run prediction
-        user_idx, item_idx, rating_real = loader.load_next_batch(10)
+            rating_predicted = model.predict(session, user_idx, item_idx)
 
-        rating_predicted = model.predict(session, user_idx, item_idx)
+            print "Real:", rating_real
+            print "Prediction:", rating_predicted
 
-        print "Real:", rating_real
-        print "Prediction:", rating_predicted
-
+main()
