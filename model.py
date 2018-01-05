@@ -34,6 +34,7 @@ class RecommenderModel(object):
         self.r_hat = tf.reduce_sum(tf.multiply(self.U_embed, self.V_embed), reduction_indices=1)
         self.r_hat = tf.add(self.r_hat, self.U_bias_embed)
         self.r_hat = tf.add(self.r_hat, self.V_bias_embed)
+        self.r_hat = tf.add(self.r_hat, tf.reduce_mean(self.r))
 
         self.l2_loss = tf.nn.l2_loss(tf.subtract(self.r, self.r_hat))
         self.reg = tf.add(tf.multiply(self.reg_lambda, tf.nn.l2_loss(self.U)), tf.multiply(self.reg_lambda, tf.nn.l2_loss(self.V)))
@@ -116,7 +117,7 @@ def main():
                 loss = model.train_batch(session, train_user_idx, train_item_idx, train_rating)
                 
                 if step % 10 == 0:
-                    print "Loss:", loss
+                    print "Step:", step, "Loss:", loss
 
             #Run prediction
             user_idx, item_idx, rating_real = loader.load_next_batch(10)
