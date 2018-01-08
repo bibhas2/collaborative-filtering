@@ -36,9 +36,6 @@ class RecommenderModel(object):
         self.r_hat = tf.add(self.r_hat, self.U_bias_embed)
         self.r_hat = tf.add(self.r_hat, self.V_bias_embed)
         # self.r_hat = tf.add(self.r_hat, tf.reduce_mean(self.r))
-        self.r_predict = tf.add(
-            tf.matmul(self.U, tf.transpose(self.V)),
-            tf.matmul(tf.reshape(self.U_bias, [self.num_users, 1]), tf.transpose(tf.reshape(self.V_bias, [self.num_items, 1]))))
 
         self.l2_loss = tf.nn.l2_loss(tf.subtract(self.r, self.r_hat))
         self.reg = tf.add(tf.multiply(self.reg_lambda, tf.nn.l2_loss(self.U)), tf.multiply(self.reg_lambda, tf.nn.l2_loss(self.V)))
@@ -47,6 +44,10 @@ class RecommenderModel(object):
         self.optimizer = tf.train.AdamOptimizer()
         self.train_step = self.optimizer.minimize(self.reg_loss)
 
+        #Accuracy estimator model
+        self.accuracy = tf.reduce_mean(tf.abs(self.r_hat/self.r - 1.0))
+        self.RMSE = tf.sqrt(tf.losses.mean_squared_error(self.r, self.r_hat))
+
     def train_batch(self, session, train_u_idx, train_v_idx, train_r):
         feed_dict = {self.u_idx:train_u_idx, self.v_idx:train_v_idx, self.r:train_r}
         session.run(self.train_step, feed_dict)
@@ -54,13 +55,23 @@ class RecommenderModel(object):
         return session.run(self.l2_loss, feed_dict)
     
     def recommend(self, session, user_idx, result_count):
-        _, item_list = session.run(tf.nn.top_k(self.r_predict[user_idx], result_count))
+        v_idx = np.arange(0, self.num_items)
+
+        feed_dict = {self.u_idx:[user_idx], self.v_idx:v_idx}
+
+        _, item_list = session.run(tf.nn.top_k(self.r_hat, result_count), feed_dict)
+
         return item_list
 
     def predict(self, session, u_idx, v_idx):
         feed_dict = {self.u_idx:[u_idx], self.v_idx:[v_idx]}
 
         return session.run(self.r_hat, feed_dict)
+
+    def run_validation(self, session, validation_u_idx, validation_v_idx, validation_r):
+        feed_dict = {self.u_idx:validation_u_idx, self.v_idx:validation_v_idx, self.r:validation_r}
+
+        return session.run(self.RMSE, feed_dict)
 
     def get_similar_products(self, session, item_index, result_count):
         #Get the normalized product parameters
@@ -84,7 +95,7 @@ class RecommenderModel(object):
         saver.restore(session, "./model.ckpt")
 
 class MovieLensDataLoader(object):
-    def __init__(self):
+    def __init__(self, file_name=None):
         self.num_users = 0
         self.num_items = 0
         self.num_ratings = 0
@@ -102,13 +113,17 @@ class MovieLensDataLoader(object):
                 elif label == "ratings":
                     self.num_ratings = value
         
-        self.data_file = open("./ml-100k/u.data", "r")
+        if file_name != None:
+            self.data_file = open(file_name, "r")
+        else:
+            self.data_file = None
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.data_file.close()
+        if self.data_file != None:
+            self.data_file.close()
 
     def load_next_batch(self, batch_size):
         user_idx = np.zeros([batch_size])
@@ -130,7 +145,7 @@ class MovieLensDataLoader(object):
 
 
 def train():
-    with MovieLensDataLoader() as loader:
+    with MovieLensDataLoader("./ml-100k/ua.base") as loader:
         print "Users:", loader.num_users
         print "Items:", loader.num_items
         print "Ratings:", loader.num_ratings
@@ -144,10 +159,26 @@ def train():
             for step in range(0, 3500):
                 train_user_idx, train_item_idx, train_rating = loader.load_next_batch(200)
                 loss = model.train_batch(session, train_user_idx, train_item_idx, train_rating)
-                
-                if step % 10 == 0:
-                    print "Step:", step, "Loss:", loss
+                error_rate = model.run_validation(session, train_user_idx, train_item_idx, train_rating)
+
+                if step % 100 == 0:
+                    print "Step:", step, "Loss:", loss, "Error:", error_rate
+
             model.save(session)
+
+def validate():
+    with MovieLensDataLoader("./ml-100k/ua.test") as loader:
+
+        with tf.Session() as session:
+            model = RecommenderModel(loader.num_users, loader.num_items, num_features=2000)
+            
+            model.restore(session)
+            
+            for step in range(0, 20):
+                validate_user_idx, validate_item_idx, validate_rating = loader.load_next_batch(500)
+                error_rate = model.run_validation(session, validate_user_idx, validate_item_idx, validate_rating)
+                
+                print "Batch:", step, "Error:", error_rate
 
 def recommend(user_idx):
     with MovieLensDataLoader() as loader:
@@ -183,9 +214,11 @@ def similar_items(item_idx):
             print index_list
 
 if len(sys.argv) == 1:
-    print "Usage: [--train] [--recommend user_index] [--similar item_index] [--predict user_index item_index]"
+    print "Usage: [--train] [--validate] [--recommend user_index] [--similar item_index] [--predict user_index item_index]"
 elif sys.argv[1] == "--train":
     train()
+elif sys.argv[1] == "--validate":
+    validate()
 elif sys.argv[1] == "--recommend":
     recommend(int(sys.argv[2]))
 elif sys.argv[1] == "--similar":
