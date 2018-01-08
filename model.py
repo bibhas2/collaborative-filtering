@@ -49,6 +49,7 @@ class RecommenderModel(object):
 
         #Accuracy estimator model
         self.accuracy = tf.reduce_mean(tf.abs(self.r_hat/self.r - 1.0))
+        self.RMSE = tf.sqrt(tf.losses.mean_squared_error(self.r, self.r_hat))
 
     def train_batch(self, session, train_u_idx, train_v_idx, train_r):
         feed_dict = {self.u_idx:train_u_idx, self.v_idx:train_v_idx, self.r:train_r}
@@ -68,7 +69,7 @@ class RecommenderModel(object):
     def run_validation(self, session, validation_u_idx, validation_v_idx, validation_r):
         feed_dict = {self.u_idx:validation_u_idx, self.v_idx:validation_v_idx, self.r:validation_r}
 
-        return session.run(self.accuracy, feed_dict)
+        return session.run(self.RMSE, feed_dict)
 
     def get_similar_products(self, session, item_index, result_count):
         #Get the normalized product parameters
@@ -155,9 +156,11 @@ def train():
             for step in range(0, 3500):
                 train_user_idx, train_item_idx, train_rating = loader.load_next_batch(200)
                 loss = model.train_batch(session, train_user_idx, train_item_idx, train_rating)
-                
-                if step % 10 == 0:
-                    print "Step:", step, "Loss:", loss
+                error_rate = model.run_validation(session, train_user_idx, train_item_idx, train_rating)
+
+                if step % 100 == 0:
+                    print "Step:", step, "Loss:", loss, "Error:", error_rate
+
             model.save(session)
 
 def validate():
@@ -170,9 +173,9 @@ def validate():
             
             for step in range(0, 20):
                 validate_user_idx, validate_item_idx, validate_rating = loader.load_next_batch(500)
-                accuracy = model.run_validation(session, validate_user_idx, validate_item_idx, validate_rating)
+                error_rate = model.run_validation(session, validate_user_idx, validate_item_idx, validate_rating)
                 
-                print "Batch:", step, "Error:", (accuracy*100.0), "%"
+                print "Batch:", step, "Error:", error_rate
 
 def recommend(user_idx):
     with MovieLensDataLoader() as loader:

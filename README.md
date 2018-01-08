@@ -12,7 +12,7 @@ Run the code as:
 python model.py
 ```
 
-With 2000 features for each user and movie we get excellent accuracy after a few minutes of training.
+With 2000 features for each user and movie we get 65% accuracy.
 
 ## Dealing With Sparse Matrix
 Very few users give any rating for most products. (Rating can be explicit like star rating or implicit like visiting a product's page).
