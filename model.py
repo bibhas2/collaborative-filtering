@@ -36,9 +36,6 @@ class RecommenderModel(object):
         self.r_hat = tf.add(self.r_hat, self.U_bias_embed)
         self.r_hat = tf.add(self.r_hat, self.V_bias_embed)
         # self.r_hat = tf.add(self.r_hat, tf.reduce_mean(self.r))
-        self.r_predict = tf.add(
-            tf.matmul(self.U, tf.transpose(self.V)),
-            tf.matmul(tf.reshape(self.U_bias, [self.num_users, 1]), tf.transpose(tf.reshape(self.V_bias, [self.num_items, 1]))))
 
         self.l2_loss = tf.nn.l2_loss(tf.subtract(self.r, self.r_hat))
         self.reg = tf.add(tf.multiply(self.reg_lambda, tf.nn.l2_loss(self.U)), tf.multiply(self.reg_lambda, tf.nn.l2_loss(self.V)))
@@ -58,7 +55,12 @@ class RecommenderModel(object):
         return session.run(self.l2_loss, feed_dict)
     
     def recommend(self, session, user_idx, result_count):
-        _, item_list = session.run(tf.nn.top_k(self.r_predict[user_idx], result_count))
+        v_idx = np.arange(0, self.num_items)
+
+        feed_dict = {self.u_idx:[user_idx], self.v_idx:v_idx}
+
+        _, item_list = session.run(tf.nn.top_k(self.r_hat, result_count), feed_dict)
+
         return item_list
 
     def predict(self, session, u_idx, v_idx):
@@ -120,7 +122,8 @@ class MovieLensDataLoader(object):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.data_file.close()
+        if self.data_file != None:
+            self.data_file.close()
 
     def load_next_batch(self, batch_size):
         user_idx = np.zeros([batch_size])
