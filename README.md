@@ -9,10 +9,11 @@ We use MovieLens data for training.
 Run the code as:
 
 ```
-python model.py
+python model.py --train
+python model.py --validate
 ```
 
-With 2000 features for each user and movie we get 65% accuracy.
+With 200 features for each user and movie we get 73% accuracy.
 
 ## Dealing With Sparse Matrix
 Very few users give any rating for most products. (Rating can be explicit like star rating or implicit like visiting a product's page).
