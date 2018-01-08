@@ -11,7 +11,7 @@ def bias_variable(shape, name):
     return tf.Variable(tf.zeros(shape), name=name)
 
 class RecommenderModel(object):
-    def __init__(self, num_users, num_items, num_features=200, reg_lambda=1e-5):
+    def __init__(self, num_users, num_items, num_features=200, reg_lambda=0.02):
         self.num_users = num_users
         self.num_items = num_items
         self.num_features = num_features
@@ -156,7 +156,7 @@ def train():
             init_op = tf.global_variables_initializer()
             session.run(init_op)
 
-            for step in range(0, 55000):
+            for step in range(0, 25000):
                 train_user_idx, train_item_idx, train_rating = loader.load_next_batch(200)
                 loss = model.train_batch(session, train_user_idx, train_item_idx, train_rating)
                 avg_error, error_rate = model.run_validation(session, train_user_idx, train_item_idx, train_rating)
