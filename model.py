@@ -45,7 +45,7 @@ class RecommenderModel(object):
         self.train_step = self.optimizer.minimize(self.reg_loss)
 
         #Accuracy estimator model
-        self.accuracy = tf.reduce_mean(tf.abs(self.r_hat/self.r - 1.0))
+        self.error_rate = tf.reduce_mean(tf.abs(self.r_hat/self.r - 1.0))
         self.RMSE = tf.sqrt(tf.losses.mean_squared_error(self.r, self.r_hat))
 
     def train_batch(self, session, train_u_idx, train_v_idx, train_r):
@@ -71,7 +71,7 @@ class RecommenderModel(object):
     def run_validation(self, session, validation_u_idx, validation_v_idx, validation_r):
         feed_dict = {self.u_idx:validation_u_idx, self.v_idx:validation_v_idx, self.r:validation_r}
 
-        return session.run(self.RMSE, feed_dict)
+        return session.run([self.RMSE, self.error_rate], feed_dict)
 
     def get_similar_products(self, session, item_index, result_count):
         #Get the normalized product parameters
@@ -151,18 +151,18 @@ def train():
         print "Ratings:", loader.num_ratings
 
         with tf.Session() as session:
-            model = RecommenderModel(loader.num_users, loader.num_items, num_features=2000)
+            model = RecommenderModel(loader.num_users, loader.num_items, num_features=100)
 
             init_op = tf.global_variables_initializer()
             session.run(init_op)
 
-            for step in range(0, 3500):
+            for step in range(0, 5000):
                 train_user_idx, train_item_idx, train_rating = loader.load_next_batch(200)
                 loss = model.train_batch(session, train_user_idx, train_item_idx, train_rating)
-                error_rate = model.run_validation(session, train_user_idx, train_item_idx, train_rating)
+                avg_error, error_rate = model.run_validation(session, train_user_idx, train_item_idx, train_rating)
 
                 if step % 100 == 0:
-                    print "Step:", step, "Loss:", loss, "Error:", error_rate
+                    print "Step:", step, "Loss:", loss, "Average error:", avg_error, "Error:", (error_rate*100.0), "%"
 
             model.save(session)
 
@@ -170,20 +170,20 @@ def validate():
     with MovieLensDataLoader("./ml-100k/ua.test") as loader:
 
         with tf.Session() as session:
-            model = RecommenderModel(loader.num_users, loader.num_items, num_features=2000)
+            model = RecommenderModel(loader.num_users, loader.num_items, num_features=100)
             
             model.restore(session)
             
             for step in range(0, 20):
                 validate_user_idx, validate_item_idx, validate_rating = loader.load_next_batch(500)
-                error_rate = model.run_validation(session, validate_user_idx, validate_item_idx, validate_rating)
+                avg_error, error_rate = model.run_validation(session, validate_user_idx, validate_item_idx, validate_rating)
                 
-                print "Batch:", step, "Error:", error_rate
+                print "Batch:", step, "Average error:", avg_error, "Error:", (error_rate*100.0), "%"
 
 def recommend(user_idx):
     with MovieLensDataLoader() as loader:
         with tf.Session() as session:
-            model = RecommenderModel(loader.num_users, loader.num_items, num_features=2000)
+            model = RecommenderModel(loader.num_users, loader.num_items, num_features=100)
 
             model.restore(session)
 
@@ -194,7 +194,7 @@ def recommend(user_idx):
 def predict_rating(user_idx, item_idx):
     with MovieLensDataLoader() as loader:
         with tf.Session() as session:
-            model = RecommenderModel(loader.num_users, loader.num_items, num_features=2000)
+            model = RecommenderModel(loader.num_users, loader.num_items, num_features=100)
 
             model.restore(session)
 
@@ -205,7 +205,7 @@ def predict_rating(user_idx, item_idx):
 def similar_items(item_idx):
     with MovieLensDataLoader() as loader:
         with tf.Session() as session:
-            model = RecommenderModel(loader.num_users, loader.num_items, num_features=2000)
+            model = RecommenderModel(loader.num_users, loader.num_items, num_features=100)
 
             model.restore(session)
 
