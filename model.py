@@ -11,7 +11,7 @@ def bias_variable(shape, name):
     return tf.Variable(tf.zeros(shape), name=name)
 
 class RecommenderModel(object):
-    def __init__(self, num_users, num_items, num_features=20, reg_lambda=1e-5):
+    def __init__(self, num_users, num_items, num_features=200, reg_lambda=1e-5):
         self.num_users = num_users
         self.num_items = num_items
         self.num_features = num_features
@@ -151,12 +151,12 @@ def train():
         print "Ratings:", loader.num_ratings
 
         with tf.Session() as session:
-            model = RecommenderModel(loader.num_users, loader.num_items, num_features=100)
+            model = RecommenderModel(loader.num_users, loader.num_items)
 
             init_op = tf.global_variables_initializer()
             session.run(init_op)
 
-            for step in range(0, 5000):
+            for step in range(0, 55000):
                 train_user_idx, train_item_idx, train_rating = loader.load_next_batch(200)
                 loss = model.train_batch(session, train_user_idx, train_item_idx, train_rating)
                 avg_error, error_rate = model.run_validation(session, train_user_idx, train_item_idx, train_rating)
@@ -170,7 +170,7 @@ def validate():
     with MovieLensDataLoader("./ml-100k/ua.test") as loader:
 
         with tf.Session() as session:
-            model = RecommenderModel(loader.num_users, loader.num_items, num_features=100)
+            model = RecommenderModel(loader.num_users, loader.num_items)
             
             model.restore(session)
             
@@ -183,7 +183,7 @@ def validate():
 def recommend(user_idx):
     with MovieLensDataLoader() as loader:
         with tf.Session() as session:
-            model = RecommenderModel(loader.num_users, loader.num_items, num_features=100)
+            model = RecommenderModel(loader.num_users, loader.num_items)
 
             model.restore(session)
 
@@ -194,7 +194,7 @@ def recommend(user_idx):
 def predict_rating(user_idx, item_idx):
     with MovieLensDataLoader() as loader:
         with tf.Session() as session:
-            model = RecommenderModel(loader.num_users, loader.num_items, num_features=100)
+            model = RecommenderModel(loader.num_users, loader.num_items)
 
             model.restore(session)
 
@@ -205,7 +205,7 @@ def predict_rating(user_idx, item_idx):
 def similar_items(item_idx):
     with MovieLensDataLoader() as loader:
         with tf.Session() as session:
-            model = RecommenderModel(loader.num_users, loader.num_items, num_features=100)
+            model = RecommenderModel(loader.num_users, loader.num_items)
 
             model.restore(session)
 
